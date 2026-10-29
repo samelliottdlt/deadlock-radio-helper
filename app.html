@@ -146,12 +146,17 @@
   // Esc is reported to the mod (the game never sees key presses while this page has focus).
   var escCount = 0;
   window.addEventListener('keydown', function (e) { if (e.key === 'Escape') escCount++; }, true);
-  // Clicking the player moves keyboard focus into YouTube's frame, where key presses can't be seen; take it back.
-  window.addEventListener('blur', function () {
-    setTimeout(function () {
-      if (f && document.activeElement === f) { try { f.blur(); } catch (x) {} try { window.focus(); } catch (x) {} }
-    }, 300);
-  });
+  // Clicking the player moves keyboard focus into YouTube's frame, where Esc can't be seen; move it to a
+  // hidden element on this page instead.
+  var sink = document.createElement('div');
+  sink.tabIndex = -1;
+  sink.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;outline:none;opacity:0';
+  document.body.appendChild(sink);
+  function reclaimFocus() {
+    if (f && document.activeElement === f) { try { sink.focus({ preventScroll: true }); } catch (x) {} }
+  }
+  window.addEventListener('blur', function () { setTimeout(reclaimFocus, 400); });
+  setInterval(reclaimFocus, 1000);
 
   var fadeT = null;
   function setVol(v) {
