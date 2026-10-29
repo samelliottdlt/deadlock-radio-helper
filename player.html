@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src https://www.youtube.com">
+<title>DLP:{"e":"load"}</title>
+<style>html, body { margin: 0; background: #000; }</style>
+</head>
+<body>
+<script>
+// Plays a YouTube video in the embed player for the patched Deadlock Radio mod.
+// Load:     player.html?v=<videoId>[&list=<playlistId>][&vol=<0-100>]
+// Commands: change only the hash to "#<seq>:<cmd>[:<arg>[:<arg>]]"
+//           cmds: vol:<0-100>, fade:<0-100>:<seconds>, play, pause, next, prev, seek:<seconds>
+// Reports:  document.title = 'DLP:' + JSON { s: state, t: time, d: duration, v: volume, m: muted, id, ti: title, au: author, e: error }
+(function () {
+  var q = location.search;
+  var vm = /[?&]v=([A-Za-z0-9_-]{11})(?:&|$)/.exec(q);
+  if (!vm) { document.title = 'DLP:{"e":"badid"}'; return; }
+  var lm = /[?&]list=([A-Za-z0-9_-]{10,64})(?:&|$)/.exec(q);
+  var volm = /[?&]vol=(\d{1,3})(?:&|$)/.exec(q);
+  var vol = volm ? Math.min(100, Number(volm[1])) : 30;
+
+  var f = document.createElement('iframe');
+  f.width = 480;
+  f.height = 270;
+  f.allow = 'autoplay; encrypted-media';
+  f.src = 'https://www.youtube.com/embed/' + vm[1] + '?enablejsapi=1&autoplay=1&controls=0&playsinline=1' + (lm ? '&list=' + lm[1] : '');
+  document.body.appendChild(f);
+
+  var st = { s: -9, t: 0, d: 0, v: -1, m: 0, id: vm[1], ti: '', au: '', e: '' };
+  var ready = false, heard = false;
+
+  function post(o) { try { f.contentWindow.postMessage(JSON.stringify(o), '*'); } catch (x) {} }
+  function cmd(func, args) { post({ event: 'command', func: func, args: args || [] }); }
+
+  var fadeT = null;
+  function setVol(v) {
+    v = Math.max(0, Math.min(100, Math.round(v)));
+    vol = v;
+    cmd('setVolume', [v]);
+    if (v > 0) cmd('unMute');
+  }
+  function fadeTo(target, sec) {
+    if (fadeT) { clearInterval(fadeT); fadeT = null; }
+    var from = st.v >= 0 ? st.v : vol;
+    var steps = Math.max(1, Math.round((sec || 0) * 20));
+    if (steps <= 1) { setVol(target); return; }
+    var i = 0;
+    fadeT = setInterval(function () {
+      i++;
+      setVol(from + (target - from) * (i / steps));
+      if (i >= steps) { clearInterval(fadeT); fadeT = null; }
+    }, 50);
+  }
+
+  window.addEventListener('message', function (e) {
+    if (e.source !== f.contentWindow) return;
+    var d = e.data;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { return; } }
+    if (!d) return;
+    heard = true;
+    if (d.event === 'onReady' && !ready) {
+      ready = true;
+      setVol(vol);
+      cmd('playVideo');
+    }
+    if (d.event === 'onError') st.e = 'err' + d.info;
+    if (d.event === 'onStateChange' && typeof d.info === 'number') st.s = d.info;
+    var i = d.info;
+    if (i && typeof i === 'object') {
+      if (typeof i.playerState === 'number') st.s = i.playerState;
+      if (typeof i.currentTime === 'number') st.t = i.currentTime;
+      if (i.duration > 0) st.d = i.duration;
+      if (typeof i.volume === 'number') st.v = i.volume;
+      if (typeof i.muted === 'boolean') st.m = i.muted ? 1 : 0;
+      if (i.videoData && i.videoData.video_id) {
+        st.id = i.videoData.video_id;
+        st.ti = String(i.videoData.title || '').substring(0, 120);
+        st.au = String(i.videoData.author || '').substring(0, 60);
+      }
+    }
+  });
+
+  var lastSeq = 0;
+  function runHash() {
+    var p = location.hash.replace(/^#/, '').split(':');
+    var seq = Number(p[0]);
+    if (!(seq > lastSeq)) return;
+    lastSeq = seq;
+    var c = p[1], a = Number(p[2]), b = Number(p[3]);
+    if (c === 'vol' && a >= 0) { if (fadeT) { clearInterval(fadeT); fadeT = null; } setVol(a); }
+    else if (c === 'fade' && a >= 0) fadeTo(a, b || 0);
+    else if (c === 'play') cmd('playVideo');
+    else if (c === 'pause') cmd('pauseVideo');
+    else if (c === 'next') cmd('nextVideo');
+    else if (c === 'prev') cmd('previousVideo');
+    else if (c === 'seek' && a >= 0) cmd('seekTo', [a, true]);
+  }
+  window.addEventListener('hashchange', runHash);
+
+  var lastTitle = '', lastAt = 0;
+  setInterval(function () {
+    if (!heard) post({ event: 'listening', id: 1, channel: 'widget' });
+    var title = 'DLP:' + JSON.stringify({ s: st.s, t: Math.round(st.t * 10) / 10, d: Math.round(st.d), v: st.v, m: st.m, id: st.id, ti: st.ti, au: st.au, e: st.e });
+    var now = Date.now();
+    if (title !== lastTitle || now - lastAt > 2000) { lastTitle = title; lastAt = now; document.title = title; }
+  }, 500);
+})();
+</script>
+</body>
+</html>
