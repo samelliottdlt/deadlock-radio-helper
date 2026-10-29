@@ -80,6 +80,14 @@
   function play(p, raw) {
     current = { raw: raw, p: p };
     msg.textContent = '';
+    st.e = '';
+    if (f && ready) {
+      // Keep one player: YouTube counts every new player as another streaming device for a while.
+      if (p.list) cmd('loadPlaylist', [{ list: p.list, listType: 'playlist', index: Math.max(0, p.index - 1), startSeconds: p.start }]);
+      else cmd('loadVideoById', [{ videoId: p.id, startSeconds: p.start }]);
+      st.id = p.id; st.ti = ''; st.au = ''; st.d = 0; st.t = 0;
+      return;
+    }
     stopOld();
     f = document.createElement('iframe');
     f.allow = 'autoplay; encrypted-media; fullscreen';
