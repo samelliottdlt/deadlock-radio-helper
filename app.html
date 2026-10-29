@@ -7,14 +7,22 @@
 <title>DLP:{"s":-9}</title>
 <style>
   html, body { margin: 0; height: 100%; background: #111; color: #ddd; font: 14px system-ui, sans-serif; overflow: hidden; }
-  form { display: flex; gap: 6px; padding: 8px; background: #1b1b1b; }
+  body { display: flex; flex-direction: column; }
+  form { display: flex; gap: 6px; padding: 8px; background: #1b1b1b; flex: none; }
   input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid #444; border-radius: 6px; background: #000; color: #eee; font: inherit; }
   button { padding: 8px 14px; border: 0; border-radius: 6px; background: #c9a227; color: #000; font: inherit; font-weight: 600; cursor: pointer; }
-  #msg { padding: 0 10px; height: 18px; font-size: 12px; color: #e88; }
-  #stage { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 60%; background: #000; }
-  #stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  #msg { padding: 0 10px; height: 18px; font-size: 12px; color: #e88; flex: none; }
+  #stage { position: relative; height: 46%; flex: none; background: #000; }
+  /* The player never takes clicks or keyboard focus (focus inside YouTube's frame swallows Esc); the bar below controls it. */
+  #stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
   #hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #777; text-align: center; padding: 20px; }
-  #recent { overflow-y: auto; height: calc(40% - 80px); padding: 4px 8px; }
+  #ctl { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #1b1b1b; flex: none; }
+  #ctl button { padding: 4px 10px; background: #333; color: #eee; min-width: 40px; }
+  #ctl button:hover { background: #444; }
+  #bar { flex: 1; height: 8px; background: #333; border-radius: 4px; cursor: pointer; position: relative; }
+  #fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #c9a227; border-radius: 4px; }
+  #time { font-variant-numeric: tabular-nums; color: #aaa; font-size: 12px; min-width: 84px; text-align: right; }
+  #recent { overflow-y: auto; flex: 1; min-height: 0; padding: 4px 8px; }
   #recent div { display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 4px; cursor: pointer; }
   #recent div:hover { background: #222; }
   #recent img { width: 64px; height: 36px; object-fit: cover; flex: none; }
@@ -28,6 +36,13 @@
 </form>
 <div id="msg"></div>
 <div id="stage"><div id="hint">Paste a YouTube link above and press Play.</div></div>
+<div id="ctl">
+  <button id="bPrev" title="Previous">&#9664;&#9664;</button>
+  <button id="bPlay" title="Play / pause">&#9654;</button>
+  <button id="bNext" title="Next">&#9654;&#9654;</button>
+  <div id="bar"><div id="fill"></div></div>
+  <span id="time">0:00 / 0:00</span>
+</div>
 <div id="recent"></div>
 <script>
 // Link-box YouTube player for the patched Deadlock Radio mod.
@@ -71,7 +86,7 @@
   }
 
   function embedUrl(p) {
-    var q = 'enablejsapi=1&autoplay=1&playsinline=1&rel=0';
+    var q = 'enablejsapi=1&autoplay=1&playsinline=1&rel=0&controls=0&disablekb=1';
     if (p.list) q += '&list=' + p.list + (p.index > 0 ? '&index=' + (p.index - 1) : '');
     if (p.start > 0) q += '&start=' + p.start;
     return 'https://www.youtube.com/embed/' + (p.id || 'videoseries') + '?' + q;
@@ -146,17 +161,29 @@
   // Esc is reported to the mod (the game never sees key presses while this page has focus).
   var escCount = 0;
   window.addEventListener('keydown', function (e) { if (e.key === 'Escape') escCount++; }, true);
-  // Clicking the player moves keyboard focus into YouTube's frame, where Esc can't be seen; move it to a
-  // hidden element on this page instead.
-  var sink = document.createElement('div');
-  sink.tabIndex = -1;
-  sink.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;outline:none;opacity:0';
-  document.body.appendChild(sink);
-  function reclaimFocus() {
-    if (f && document.activeElement === f) { try { sink.focus({ preventScroll: true }); } catch (x) {} }
+
+  // Control bar (the player itself takes no clicks, so keyboard focus always stays on this page).
+  var fill = document.getElementById('fill'), timeEl = document.getElementById('time'), bPlay = document.getElementById('bPlay');
+  function fmt(s) {
+    s = Math.max(0, Math.floor(s || 0));
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (x < 10 ? '0' : '') + x;
   }
-  window.addEventListener('blur', function () { setTimeout(reclaimFocus, 400); });
-  setInterval(reclaimFocus, 1000);
+  document.getElementById('bPrev').addEventListener('click', function () { cmd('previousVideo'); });
+  document.getElementById('bNext').addEventListener('click', function () { cmd('nextVideo'); });
+  bPlay.addEventListener('click', function () { if (st.s === 1 || st.s === 3) cmd('pauseVideo'); else cmd('playVideo'); });
+  document.getElementById('bar').addEventListener('click', function (e) {
+    if (!(st.d > 0)) return;
+    var r = this.getBoundingClientRect();
+    cmd('seekTo', [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * st.d, true]);
+  });
+  var shownPlaying = null;
+  function drawCtl() {
+    fill.style.width = (st.d > 0 ? Math.min(100, st.t / st.d * 100) : 0) + '%';
+    timeEl.textContent = fmt(st.t) + ' / ' + fmt(st.d);
+    var playing = st.s === 1 || st.s === 3;
+    if (playing !== shownPlaying) { shownPlaying = playing; bPlay.innerHTML = playing ? '&#10074;&#10074;' : '&#9654;'; }
+  }
 
   var fadeT = null;
   function setVol(v) {
@@ -232,6 +259,7 @@
   var lastTitle = '', lastAt = 0;
   setInterval(function () {
     if (f && !heard) post({ event: 'listening', id: 1, channel: 'widget' });
+    drawCtl();
     var title = 'DLP:' + JSON.stringify({ s: st.s, t: Math.round(st.t * 10) / 10, d: Math.round(st.d), v: st.v, m: st.m, id: st.id, ti: st.ti, au: st.au, e: st.e, nv: savedNv, k: escCount });
     var now = Date.now();
     if (title !== lastTitle || now - lastAt > 2000) { lastTitle = title; lastAt = now; document.title = title; }
