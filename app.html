@@ -147,6 +147,7 @@
     if (!p) { msg.textContent = "That doesn't look like a YouTube link."; return; }
     play(p, raw);
     remember(raw, p.id, '');
+    input.blur();
   });
 
   function post(o) { if (f) { try { f.contentWindow.postMessage(JSON.stringify(o), '*'); } catch (x) {} } }
@@ -168,6 +169,14 @@
   // Esc is reported to the mod (the game never sees key presses while this page has focus).
   var escCount = 0;
   window.addEventListener('keydown', function (e) { if (e.key === 'Escape') escCount++; }, true);
+
+  // The mod only gives this page keyboard focus while the link box is in use (ia: 1), so that otherwise Esc goes
+  // straight to the game. Ask for it on a press in the box; give it back on any other press, blur or submit.
+  var wantKeys = 0;
+  function setWantKeys(v) { if (wantKeys !== v) { wantKeys = v; report(); } }
+  document.addEventListener('pointerdown', function (e) { setWantKeys(e.target === input ? 1 : 0); }, true);
+  input.addEventListener('focus', function () { setWantKeys(1); });
+  input.addEventListener('blur', function () { setWantKeys(0); });
 
   // Control bar (the player itself takes no clicks, so keyboard focus always stays on this page).
   var fill = document.getElementById('fill'), timeEl = document.getElementById('time'), bPlay = document.getElementById('bPlay');
@@ -264,12 +273,15 @@
 
   drawRecent();
   var lastTitle = '', lastAt = 0;
+  function report() {
+    var title = 'DLP:' + JSON.stringify({ s: st.s, t: Math.round(st.t * 10) / 10, d: Math.round(st.d), v: st.v, m: st.m, id: st.id, ti: st.ti, au: st.au, e: st.e, nv: savedNv, k: escCount, ia: wantKeys });
+    var now = Date.now();
+    if (title !== lastTitle || now - lastAt > 2000) { lastTitle = title; lastAt = now; document.title = title; }
+  }
   setInterval(function () {
     if (f && !heard) post({ event: 'listening', id: 1, channel: 'widget' });
     drawCtl();
-    var title = 'DLP:' + JSON.stringify({ s: st.s, t: Math.round(st.t * 10) / 10, d: Math.round(st.d), v: st.v, m: st.m, id: st.id, ti: st.ti, au: st.au, e: st.e, nv: savedNv, k: escCount });
-    var now = Date.now();
-    if (title !== lastTitle || now - lastAt > 2000) { lastTitle = title; lastAt = now; document.title = title; }
+    report();
   }, 500);
 })();
 </script>
