@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src https://www.youtube.com">
+<title>DLR:ready</title>
+<style>html, body { margin: 0; background: #000; }</style>
+</head>
+<body>
+<script>
+// Reports a YouTube video's duration through document.title as "DLR:<id>:<seconds>".
+// The video is only cued in the embed player, never played.
+(function () {
+  var m = /[?&]v=([A-Za-z0-9_-]{11})(?:&|$)/.exec(location.search);
+  if (!m) { document.title = 'DLR:none:badid'; return; }
+  var id = m[1];
+  function say(v) { document.title = 'DLR:' + id + ':' + v; }
+  say('boot');
+
+  var f = document.createElement('iframe');
+  f.width = 320;
+  f.height = 180;
+  f.src = 'https://www.youtube.com/embed/' + id + '?enablejsapi=1&mute=1&controls=0&autoplay=0';
+  document.body.appendChild(f);
+
+  var done = false, n = 0, seen = 0;
+  window.addEventListener('message', function (e) {
+    if (e.source !== f.contentWindow) return;
+    var d = e.data;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { return; } }
+    if (!d || done) return;
+    if (++seen === 1) say('msg');
+    if (d.event === 'onError') { done = true; say('err' + d.info); return; }
+    if (d.info && d.info.duration > 0) { done = true; say(Math.round(d.info.duration)); }
+  });
+
+  var t = setInterval(function () {
+    if (done) { clearInterval(t); return; }
+    if (++n > 60) { clearInterval(t); say(seen ? 'nodur' : 'silent'); return; }
+    try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'); } catch (x) {}
+  }, 250);
+})();
+</script>
+</body>
+</html>
