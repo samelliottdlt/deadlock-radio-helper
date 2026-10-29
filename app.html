@@ -54,7 +54,7 @@
 <script>
 // Link-box YouTube player for the patched Deadlock Radio mod.
 // Commands: change only the hash to "#<seq>:<cmd>[:<arg>[:<arg>]]"
-//           cmds: vol:<0-100>, fade:<0-100>:<seconds>, play, pause, next, prev, seek:<seconds>, save:nv:<0-100>
+//           cmds: vol:<0-100>, fade:<0-100>:<seconds>, play, pause, next, prev, seek:<seconds>, save:nv:<0-100>, submit
 // Reports:  document.title = 'DLP:' + JSON { s: state, t: time, d: duration, v: volume, m: muted, id, ti: title, au: author, e: error, nv: saved volume or -1, k: Esc presses }
 (function () {
   var stage = document.getElementById('stage');
@@ -140,14 +140,22 @@
     });
   }
 
-  document.getElementById('f').addEventListener('submit', function (e) {
-    e.preventDefault();
+  // Called by the form and by the mod's "submit" command (the game may swallow Enter before this page sees it).
+  var lastSubmit = { raw: '', at: 0 };
+  function submitLink() {
     var raw = input.value.trim();
+    if (!raw) return;
+    if (raw === lastSubmit.raw && Date.now() - lastSubmit.at < 1000) return;
+    lastSubmit = { raw: raw, at: Date.now() };
     var p = parseLink(raw);
     if (!p) { msg.textContent = "That doesn't look like a YouTube link."; return; }
     play(p, raw);
     remember(raw, p.id, '');
     input.blur();
+  }
+  document.getElementById('f').addEventListener('submit', function (e) {
+    e.preventDefault();
+    submitLink();
   });
 
   function post(o) { if (f) { try { f.contentWindow.postMessage(JSON.stringify(o), '*'); } catch (x) {} } }
@@ -268,6 +276,7 @@
     else if (c === 'prev') cmd('previousVideo');
     else if (c === 'seek' && a >= 0) cmd('seekTo', [a, true]);
     else if (c === 'save' && p[2] === 'nv' && b >= 0 && b <= 100) { savedNv = Math.round(b); try { localStorage.setItem('dlr_nv', String(savedNv)); } catch (e) {} }
+    else if (c === 'submit') submitLink();
   }
   window.addEventListener('hashchange', runHash);
 
