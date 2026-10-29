@@ -33,7 +33,7 @@
 // Link-box YouTube player for the patched Deadlock Radio mod.
 // Commands: change only the hash to "#<seq>:<cmd>[:<arg>[:<arg>]]"
 //           cmds: vol:<0-100>, fade:<0-100>:<seconds>, play, pause, next, prev, seek:<seconds>, save:nv:<0-100>
-// Reports:  document.title = 'DLP:' + JSON { s: state, t: time, d: duration, v: volume, m: muted, id, ti: title, au: author, e: error, nv: saved volume or -1 }
+// Reports:  document.title = 'DLP:' + JSON { s: state, t: time, d: duration, v: volume, m: muted, id, ti: title, au: author, e: error, nv: saved volume or -1, k: Esc presses }
 (function () {
   var stage = document.getElementById('stage');
   var input = document.getElementById('u');
@@ -80,7 +80,7 @@
   function play(p, raw) {
     current = { raw: raw, p: p };
     msg.textContent = '';
-    stage.innerHTML = '';
+    stopOld();
     f = document.createElement('iframe');
     f.allow = 'autoplay; encrypted-media; fullscreen';
     f.addEventListener('load', function () { heard = false; ready = false; });
@@ -121,6 +121,29 @@
 
   function post(o) { if (f) { try { f.contentWindow.postMessage(JSON.stringify(o), '*'); } catch (x) {} } }
   function cmd(func, args) { post({ event: 'command', func: func, args: args || [] }); }
+
+  // Stop the old player before removing it, so YouTube ends that session instead of timing it out.
+  function stopOld() {
+    var hint = document.getElementById('hint');
+    if (hint) hint.remove();
+    if (!f) return;
+    var old = f;
+    try { old.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'stopVideo', args: [] }), '*'); } catch (x) {}
+    old.style.visibility = 'hidden';
+    f = null;
+    setTimeout(function () { old.remove(); }, 800);
+  }
+  window.addEventListener('pagehide', function () { cmd('stopVideo'); });
+
+  // Esc is reported to the mod (the game never sees key presses while this page has focus).
+  var escCount = 0;
+  window.addEventListener('keydown', function (e) { if (e.key === 'Escape') escCount++; }, true);
+  // Clicking the player moves keyboard focus into YouTube's frame, where key presses can't be seen; take it back.
+  window.addEventListener('blur', function () {
+    setTimeout(function () {
+      if (f && document.activeElement === f) { try { f.blur(); } catch (x) {} try { window.focus(); } catch (x) {} }
+    }, 300);
+  });
 
   var fadeT = null;
   function setVol(v) {
@@ -196,7 +219,7 @@
   var lastTitle = '', lastAt = 0;
   setInterval(function () {
     if (f && !heard) post({ event: 'listening', id: 1, channel: 'widget' });
-    var title = 'DLP:' + JSON.stringify({ s: st.s, t: Math.round(st.t * 10) / 10, d: Math.round(st.d), v: st.v, m: st.m, id: st.id, ti: st.ti, au: st.au, e: st.e, nv: savedNv });
+    var title = 'DLP:' + JSON.stringify({ s: st.s, t: Math.round(st.t * 10) / 10, d: Math.round(st.d), v: st.v, m: st.m, id: st.id, ti: st.ti, au: st.au, e: st.e, nv: savedNv, k: escCount });
     var now = Date.now();
     if (title !== lastTitle || now - lastAt > 2000) { lastTitle = title; lastAt = now; document.title = title; }
   }, 500);
