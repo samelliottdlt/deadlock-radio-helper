@@ -12,7 +12,8 @@
 // Plays a YouTube video in the embed player for the patched Deadlock Radio mod.
 // Load:     player.html?v=<videoId>[&list=<playlistId>][&vol=<0-100>]
 // Commands: change only the hash to "#<seq>:<cmd>[:<arg>[:<arg>]]"
-//           cmds: vol:<0-100>, fade:<0-100>:<seconds>, play, pause, next, prev, seek:<seconds>
+//           cmds: vol:<0-100>, fade:<0-100>:<seconds>, play, pause, next, prev, seek:<seconds>,
+//                 load:<videoId>[:<mix list id>] (keeps this page, so an earlier click still allows sound)
 // Reports:  document.title = 'DLP:' + JSON { s: state, t: time, d: duration, v: volume, m: muted, id, ti: title, au: author, e: error }
 (function () {
   var q = location.search;
@@ -23,10 +24,9 @@
   var vol = volm ? Math.min(100, Number(volm[1])) : 30;
 
   var f = document.createElement('iframe');
-  f.width = 480;
-  f.height = 270;
-  f.allow = 'autoplay; encrypted-media';
-  f.src = 'https://www.youtube.com/embed/' + vm[1] + '?enablejsapi=1&autoplay=1&controls=0&playsinline=1' + (lm ? '&list=' + lm[1] : '');
+  f.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;border:0';
+  f.allow = 'autoplay; encrypted-media; fullscreen';
+  f.src = 'https://www.youtube.com/embed/' + vm[1] + '?enablejsapi=1&autoplay=1&controls=1&playsinline=1' + (lm ? '&list=' + lm[1] : '');
   document.body.appendChild(f);
 
   var st = { s: -9, t: 0, d: 0, v: -1, m: 0, id: vm[1], ti: '', au: '', e: '' };
@@ -97,6 +97,12 @@
     else if (c === 'next') cmd('nextVideo');
     else if (c === 'prev') cmd('previousVideo');
     else if (c === 'seek' && a >= 0) cmd('seekTo', [a, true]);
+    else if (c === 'load' && /^[A-Za-z0-9_-]{11}$/.test(p[2] || '')) {
+      var lid = /^RD[A-Za-z0-9_-]{8,62}$/.test(p[3] || '') ? p[3] : '';
+      st.id = p[2]; st.ti = ''; st.au = ''; st.d = 0; st.t = 0; st.e = '';
+      if (lid) cmd('loadPlaylist', [{ list: lid, listType: 'playlist', index: 0 }]);
+      else cmd('loadVideoById', [{ videoId: p[2] }]);
+    }
   }
   window.addEventListener('hashchange', runHash);
 
