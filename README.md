@@ -1,11 +1,13 @@
 # deadlock-radio-helper
 
-A single static page used by a locally patched copy of the Deadlock Radio HUD mod to show the current song's duration.
+Static pages used by a locally patched copy of the Deadlock Radio HUD mod.
 
-Deadlock's in-game browser can no longer run scripts inside YouTube pages, and YouTube's embed player refuses pages without a real origin (error 153). This page provides that origin: it cues the video in a hidden embed (it never plays it), reads the duration, and reports it through the page title as `DLR:<videoId>:<seconds>`.
+Deadlock's in-game browser can no longer run scripts inside YouTube pages, and YouTube's embed player refuses pages without a real origin (error 153), so these pages provide that origin.
 
-Usage: `https://samelliottdlt.github.io/deadlock-radio-helper/?v=<videoId>`
+## app.html (current)
 
-The repo also has `player.html`, which plays the video in the embed player so the mod can control volume and playback. It takes commands through its URL hash (`#<seq>:vol:<0-100>`, `fade`, `play`, `pause`, `next`, `prev`, `seek`) and reports state through its title as `DLP:<json>`.
+What the mod's Browser tab shows: a link box (paste a YouTube video, playlist, youtu.be or Shorts link, or a video ID), YouTube's embed player, and a list of recent links. The mod controls it by changing only the URL hash (`#<seq>:vol:<0-100>`, `fade:<0-100>:<seconds>`, `play`, `pause`, `next`, `prev`, `seek:<seconds>`) and reads its state from the page title (`DLP:<json>`).
 
-Usage: `https://samelliottdlt.github.io/deadlock-radio-helper/player.html?v=<videoId>[&list=<playlistId>][&vol=<0-100>]`
+## index.html, player.html (older experiments)
+
+`index.html?v=<id>` reports a video's duration through its title as `DLR:<id>:<seconds>`. `player.html?v=<id>` is an earlier hidden-player version of `app.html`.
