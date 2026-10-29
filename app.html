@@ -7,10 +7,12 @@
 <title>DLP:{"s":-9}</title>
 <style>
   html, body { margin: 0; height: 100%; background: #111; color: #ddd; font: 14px system-ui, sans-serif; overflow: hidden; }
+  /* Plain arrow everywhere: the game takes over the page's cursor and can keep it after the menu closes. */
+  * { cursor: default !important; }
   body { display: flex; flex-direction: column; }
   form { display: flex; gap: 6px; padding: 8px; background: #1b1b1b; flex: none; }
   input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid #444; border-radius: 6px; background: #000; color: #eee; font: inherit; }
-  button { padding: 8px 14px; border: 0; border-radius: 6px; background: #c9a227; color: #000; font: inherit; font-weight: 600; cursor: pointer; }
+  button { padding: 8px 14px; border: 0; border-radius: 6px; background: #c9a227; color: #000; font: inherit; font-weight: 600; }
   #msg { padding: 0 10px; height: 18px; font-size: 12px; color: #e88; flex: none; }
   #stage { position: relative; height: 46%; flex: none; background: #000; }
   /* The player never takes clicks or keyboard focus (focus inside YouTube's frame swallows Esc); the bar below controls it. */
@@ -19,11 +21,11 @@
   #ctl { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #1b1b1b; flex: none; }
   #ctl button { padding: 4px 10px; background: #333; color: #eee; min-width: 40px; }
   #ctl button:hover { background: #444; }
-  #bar { flex: 1; height: 8px; background: #333; border-radius: 4px; cursor: pointer; position: relative; }
+  #bar { flex: 1; height: 8px; background: #333; border-radius: 4px; position: relative; }
   #fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #c9a227; border-radius: 4px; }
   #time { font-variant-numeric: tabular-nums; color: #aaa; font-size: 12px; min-width: 84px; text-align: right; }
   #recent { overflow-y: auto; flex: 1; min-height: 0; padding: 4px 8px; }
-  #recent div { display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 4px; cursor: pointer; }
+  #recent div { display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 4px; }
   #recent div:hover { background: #222; }
   #recent img { width: 64px; height: 36px; object-fit: cover; flex: none; }
   #recent span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
